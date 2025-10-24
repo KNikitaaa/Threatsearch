@@ -1,0 +1,152 @@
+---
+title: "Основы обработки данных с помощью R и Dplyr"
+author: "niki-tos29@yandex.ru"
+format: 
+  md:
+    output-file: README.md
+---
+
+## Цель работы
+
+  1. Развить практические навыки использования языка программирования R для
+обработки данных
+  2. Закрепить знания базовых типов данных языка R
+  3. Развить практические навыки использования функций обработки данных пакета
+dplyr – функции select(), filter(), mutate(), arrange(), group_by()
+
+
+
+## Исходные данные
+
+1. Программное обеспечение Windows 11 Pro
+2. Rstudio Desktop
+3. Интерпретатор языка R 4.5.1
+4. Программный пакет dplyr и встроенный пакет nycflights13
+       
+ 
+## План
+
+1. Загрузка пакета nycflights13  
+2. Выполнение заданий практической работы
+3. Формирование отчета
+
+
+## Шаги:  
+
+1 Установка датафрейма.
+
+```
+> install.packages('nycflights13')
+WARNING: Rtools is required to build R packages but is not currently installed. Please download and install the appropriate version of Rtools before proceeding:
+
+https://cran.rstudio.com/bin/windows/Rtools/
+Устанавливаю пакет в ‘C:/Users/Никита/AppData/Local/R/win-library/4.5’
+(потому что ‘lib’ не определено)
+пробую URL 'https://mirror.truenetwork.ru/CRAN/bin/windows/contrib/4.5/nycflights13_1.0.2.zip'
+Content type 'application/zip' length 4511557 bytes (4.3 MB)
+downloaded 4.3 MB
+
+пакет ‘nycflights13’ успешно распакован, MD5-суммы проверены
+
+Скачанные бинарные пакеты находятся в
+	C:\Users\Никита\AppData\Local\Temp\RtmpugoQBh\downloaded_packages
+```
+
+2 Загрузка библиотек
+
+```{r}
+library(nycflights13)
+library(dplyr)
+library(knitr)
+```
+
+3 Сколько встроенных в пакет `nycflights13` датафреймов?
+
+```{r}
+data(package = "nycflights13")$results[, "Item"]
+```
+
+4 Сколько строк в каждом датафрейме?
+
+```{r}
+airlines %>% nrow()
+airports %>% nrow()
+flights %>% nrow()
+planes %>% nrow()
+weather %>% nrow()
+```
+
+5 Сколько столбцов в каждом датафрейме?
+
+```{r}
+airlines %>% ncol()
+airports %>% ncol()
+flights %>% ncol()
+planes %>% ncol()
+weather %>% ncol()
+```
+
+6 Как просмотреть примерный вид датафрейма?
+
+```{r}
+glimpse(airlines)
+glimpse(airports)
+glimpse(flights)
+glimpse(planes)
+glimpse(weather)
+```
+
+7 Сколько компаний-перевозчиков (carrier) учитывают эти наборы данных (представлено в наборах данных)?
+
+```{r}
+length(unique(airlines$carrier))
+```
+
+8 Сколько рейсов принял аэропорт John F Kennedy Intl в мае?
+
+```{r}
+nrow(flights[flights$dest == "JFK" & flights$month == 5, ])
+```
+
+9 Какой самый северный аэропорт?
+
+```{r}
+airports[which.max(airports$lat), ] %>% pull(name)
+```
+
+10 Какой аэропорт самый высокогорный (находится выше всех над уровнем моря)?
+
+```{r}
+airports[which.max(airports$alt), ] %>% pull(name)
+```
+
+11 Какие бортовые номера у самых старых самолетов?
+
+```{r}
+planes %>% select(tailnum, year) %>% arrange(year) %>% slice(1:20) |> knitr::kable(format='markdown')
+```
+
+12 Какая средняя температура воздуха была в сентябре в аэропорту John F Kennedy Intl (в градусах Цельсия).
+
+```{r}
+weather %>% filter(origin=='JFK', month==9) %>% summarize(mean_temp = (mean(temp, na.rm = TRUE)-32)*5/9) |> knitr::kable(format='markdown')
+```
+
+13 Самолеты какой авиакомпании совершили больше всего вылетов в июне?
+
+```{r}
+flights %>% left_join(airlines, join_by(carrier)) %>% filter(month == 6)%>%group_by(name) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+```
+
+14 Самолеты какой авиакомпании задерживались чаще других в 2013 году?
+
+```{r}
+flights %>% left_join(airlines, join_by(carrier)) %>% group_by(name) %>% filter(arr_delay > 0 & year == 2013) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+```
+## Оценка результата
+
+  В результате лабораторной работы мы проанализировали встроенный в пакет dplyr набор данных `nycflights13` с помощью языка R.
+
+## Вывод
+
+  Таким образом, мы развили практические навыки использования языка R для обработки данных, закрепили знания базовых типов данных языка R, развили практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by().
