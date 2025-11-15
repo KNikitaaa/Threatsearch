@@ -1,0 +1,207 @@
+---
+title: "Исследование метаданных DNS трафика"
+author: "niki-tos29@yandex.ru"
+format: 
+  md:
+    output-file: README.md
+---
+
+## Цель работы
+
+  1. Закрепить практические навыки использования языка программирования R для
+обработки данных
+  2. Закрепить знания основных функций обработки данных экосистемы tidyverse
+языка R
+  3. Закрепить навыки исследования метаданных DNS трафика
+
+
+## Исходные данные
+
+1. Программное обеспечение Windows 11 Pro
+2. Rstudio Desktop
+3. Интерпретатор языка R 4.5.1
+4. Программный пакет dplyr
+       
+ 
+## План
+
+1. Импорт DNS логов
+2. Подготовка импортированных данных
+3. Анализ DNS логов
+4. Обогащение данных
+5. Формирование отчета
+
+
+## Шаги:
+
+Установим и подключим необходимые библиотеки:
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(httr)
+library(lubridate)
+```
+
+
+### Подготовка данных
+1. Импортируем данные DNS
+
+```{r}
+get_file <- function(url, filename) {
+  download.file(url, filename)
+  unzip(filename)
+}
+
+get_file("https://storage.yandexcloud.net/dataset.ctfsec/dns.zip", "dns_data.zip")
+dns_data <- read_tsv("dns.log", comment = "#", col_names = F)
+```
+
+2. Добавим пропущенные данные о структуре данных (назначении столбцов)
+
+```{r}
+column_names <- c(
+  "time", "session_id", "src_ip", "src_port", "dst_ip", 
+  "dst_port", "proto", "trans_id", "domain", "qclass_val", 
+  "qclass_txt", "qtype_val", "qtype_txt", "response_code", "response_txt", 
+  "authoritative", "truncated", "recursion_desired", "recursion_available", 
+  "zero_field", "answers", "ttl_values", "blocked"
+)
+
+names(dns_data) <- column_names
+```
+
+3. Преобразуем данные в столбцах в нужный формат
+
+```{r}
+dns_data <- dns_data |> 
+  mutate(
+    time = as_datetime(time),
+    src_port = as.numeric(src_port),
+    qclass_val = as.numeric(qclass_val),
+    qtype_val = as.numeric(qtype_val)
+  )
+```
+
+Посмотрим общую структуру данных
+
+```{r}
+glimpse(dns_data)
+```
+
+### Анализ
+4. Сколько участников информационного обмена в сети Доброй Организации?
+
+```{r}
+unique_ips <- unique(c(dns_data$src_ip, dns_data$dst_ip))
+total_participants <- length(unique_ips)
+print(total_participants)
+```
+
+5. Какое соотношение участников обмена внутри сети и участников обращений к внешним ресурсам?
+
+```{r}
+internal_ips <- unique_ips[str_detect(unique_ips, "^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.)")]
+external_ips <- setdiff(unique_ips, internal_ips)
+ratio <- length(internal_ips) / length(external_ips)
+print(ratio)
+```
+
+6. Найдите топ-10 участников сети, проявляющих наибольшую сетевую активность.
+
+```{r}
+top_active <- dns_data |> 
+  group_by(src_ip) |> 
+  tally(sort = TRUE) |> 
+  slice_head(n = 10)
+print(top_active)
+```
+
+7. Найдите топ-10 доменов, к которым обращаются пользователи сети и соответственное количество обращений
+
+```{r}
+top_domains <- dns_data |> 
+  count(domain, sort = TRUE) |> 
+  head(10)
+print(top_domains)
+```
+
+8. Определите базовые статистические характеристики (функция summary() ) интервала времени между последовательными обращениями к топ-10 доменам.
+
+```{r}
+popular_domains <- top_domains |> pull(domain)
+
+time_stats <- dns_data |> 
+  filter(domain %in% popular_domains) |>
+  arrange(time) |> 
+  group_by(domain) |>
+  mutate(time_diff = lead(time) - time) |>
+  filter(!is.na(time_diff)) |>
+  summarise(
+    minimum = min(time_diff),
+    first_quartile = quantile(time_diff, 0.25),
+    middle = median(time_diff),
+    third_quartile = quantile(time_diff, 0.75),
+    maximum = max(time_diff),
+    average = mean(time_diff)
+  )
+print(time_stats)
+```
+
+9. Часто вредоносное программное обеспечение использует DNS канал в качестве канала управления, периодически отправляя запросы на подконтрольный злоумышленникам DNS сервер. По периодическим запросам на один и тот же домен можно выявить скрытый DNS канал. Есть ли такие IP адреса в исследуемом датасете?
+
+```{r}
+suspicious_channels <- dns_data |>
+  arrange(src_ip, domain, time) |>
+  group_by(src_ip, domain) |>
+  mutate(interval = as.numeric(lead(time) - time)) |>
+  filter(!is.na(interval)) |>
+  summarise(
+    request_count = n() + 1,
+    mean_interval = mean(interval),
+    .groups = 'drop'
+  ) |>
+  filter(request_count >= 10, mean_interval <= 30) |>
+  group_by(src_ip) |>
+  summarise(
+    suspicious_domains = n(),
+    total_queries = sum(request_count)
+  ) |>
+  arrange(desc(suspicious_domains))
+
+print(suspicious_channels)
+```
+
+### Обогащение данных
+10. Определите местоположение (страну, город) и организацию-провайдера для топ-10 доменов. Для этого можно использовать сторонние сервисы, например http://ip-api.com (API-эндпоинт – http://ip-api.com/json).
+
+```{r}
+fetch_geo_data <- function(domain_name) {
+  tryCatch({
+    api_response <- GET(paste0("http://ip-api.com/json/", domain_name))
+    response_data <- content(api_response, "parsed")
+    return(list(
+      domain = domain_name,
+      address = response_data$query %||% NA,
+      nation = response_data$country %||% NA,
+      town = response_data$city %||% NA,
+      provider = response_data$isp %||% NA
+    ))
+  }, error = function(e) {
+    return(list(domain = domain_name, address = NA, nation = NA, town = NA, provider = NA))
+  })
+}
+
+geo_results <- map_dfr(popular_domains, fetch_geo_data)
+print(as.data.frame(geo_results))
+```
+
+## Оценка результата
+
+  В результате лабораторной работы мы исследовали подозрительную сетевую активность во внутренней сети Доброй
+Организации. Исследовали файлы, восстановили данные, подготовили их к анализу и закрепили навыки исследования метаданных DNS трафика.
+
+## Вывод
+  
+  В результате выполнения работы были закреплены знания основных функций обработки данных экосистемы tidyverse и получены навыки исследования метаданных DNS трафика
