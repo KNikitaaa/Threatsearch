@@ -347,26 +347,26 @@ print(as.data.frame(geo_results))
     10                                                                  ISATAP
                                                                        address
     1                                                teredo.ipv6.microsoft.com
-    2                                                          142.250.151.100
-    3                                                2a02:26f0:1c80:119b::1aca
-    4                                                  2a01:b740:a20:3000::1f2
-    5                                                          142.250.140.113
+    2                                                          142.250.179.206
+    3                                                 2a02:26f0:1180:583::1aca
+    4                                                            17.253.28.251
+    5                                                            142.251.36.14
     6  *\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00
     7                                                                     WPAD
     8                                              44.206.168.192.in-addr.arpa
     9                                                                 HPE8AA67
     10                                                                  ISATAP
-               nation          town            provider
-    1            <NA>          <NA>                <NA>
-    2   United States Mountain View          Google LLC
-    3  United Kingdom        London Akamai Technologies
-    4          France        Clichy          Apple Inc.
-    5   United States Mountain View          Google LLC
-    6            <NA>          <NA>                <NA>
-    7            <NA>          <NA>                <NA>
-    8            <NA>          <NA>                <NA>
-    9            <NA>          <NA>                <NA>
-    10           <NA>          <NA>                <NA>
+                nation      town            provider
+    1             <NA>      <NA>                <NA>
+    2  The Netherlands Amsterdam          Google LLC
+    3  The Netherlands Amsterdam Akamai Technologies
+    4   United Kingdom    Slough          Apple Inc.
+    5  The Netherlands Amsterdam          Google LLC
+    6             <NA>      <NA>                <NA>
+    7             <NA>      <NA>                <NA>
+    8             <NA>      <NA>                <NA>
+    9             <NA>      <NA>                <NA>
+    10            <NA>      <NA>                <NA>
 
 ## Оценка результата
 
