@@ -51,178 +51,188 @@ url <- "https://storage.yandexcloud.net/dataset.ctfsec/P2_wifi_data.csv"
 ```
 
 ```{r}
-ap_data <- read_csv(url, skip = 1, col_names = FALSE)
-client_start_line <- which(ap_data$X1 == "Station MAC")
+raw_input <- read_csv(url, skip = 1, col_names = FALSE)
+split_point <- which(raw_input$X1 == "Station MAC")
 ```
 
 2. Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных.
 
 ```{r}
-ap_data_raw <- ap_data[2:(client_start_line[1]-1), ]
-client_data_raw <- ap_data[client_start_line[1]:nrow(ap_data), ]
+tbl_access <- raw_input[2:(split_point[1] - 1), ]
+tbl_clients <- raw_input[split_point[1]:nrow(raw_input), ]
 
-ap_data_raw <- ap_data_raw[rowSums(is.na(ap_data_raw)) != ncol(ap_data_raw), ]
-client_data_raw <- client_data_raw[rowSums(is.na(client_data_raw)) != ncol(client_data_raw), ]
-client_data_raw <- client_data_raw[, 1:7]
-ap_col_names <- c("BSSID", "First_time_seen", "Last_time_seen", "channel", 
-                  "Speed", "Privacy", "Cipher", "Authentication", "Power",
-                  "beacons", "IV", "LAN_IP", "ID_length", "ESSID", "Key")
+tbl_access <- tbl_access[rowSums(is.na(tbl_access)) < ncol(tbl_access), ]
+tbl_clients <- tbl_clients[rowSums(is.na(tbl_clients)) < ncol(tbl_clients), ]
 
-client_col_names <- c("Station_MAC", "First_time_seen", "Last_time_seen", "Power",
-                      "packets", "BSSID", "Probed_ESSIDs")
-names(ap_data_raw) <- ap_col_names[1:ncol(ap_data_raw)]
-names(client_data_raw) <- client_col_names[1:ncol(client_data_raw)]
-ap_data_clean <- ap_data_raw %>%
-  filter(!is.na(BSSID), BSSID != "", !is.na(ESSID), ESSID != "") %>%
+tbl_clients <- tbl_clients[, 1:7]
+
+colnames_ap <- c(
+  "bssid", "first_seen", "last_seen", "chan", "speed",
+  "privacy", "cipher", "auth", "pwr", "beacon_count",
+  "iv", "lan", "id_len", "essid", "key"
+)
+
+colnames_cl <- c(
+  "mac", "first_seen", "last_seen", "pwr",
+  "pkt", "bssid", "probe"
+)
+
+names(tbl_access) <- colnames_ap[1:ncol(tbl_access)]
+names(tbl_clients) <- colnames_cl[1:ncol(tbl_clients)]
+
+wifi_ap <- tbl_access %>%
+  filter(!is.na(bssid), bssid != "", !is.na(essid), essid != "") %>%
   mutate(
-    First_time_seen = as.POSIXct(First_time_seen, format = "%Y-%m-%d %H:%M:%S"),
-    Last_time_seen = as.POSIXct(Last_time_seen, format = "%Y-%m-%d %H:%M:%S"),
-    channel = as.numeric(channel),
-    Speed = as.numeric(Speed),
-    Power = as.numeric(Power),
-    beacons = as.numeric(beacons),
-    IV = as.numeric(IV),
-    ID_length = as.numeric(ID_length)
+    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    chan   = as.numeric(chan),
+    speed  = as.numeric(speed),
+    pwr    = as.numeric(pwr),
+    beacon_count = as.numeric(beacon_count),
+    iv     = as.numeric(iv),
+    id_len = as.numeric(id_len)
   )
 
-client_data_clean <- client_data_raw[-1, ] %>%
-  filter(!is.na(Station_MAC), Station_MAC != "", Station_MAC != "Station MAC") %>%
+wifi_cl <- tbl_clients[-1, ] %>%
+  filter(!is.na(mac), mac != "", mac != "Station MAC") %>%
   mutate(
-    First_time_seen = as.POSIXct(First_time_seen, format = "%Y-%m-%d %H:%M:%S"),
-    Last_time_seen = as.POSIXct(Last_time_seen, format = "%Y-%m-%d %H:%M:%S"),
-    Power = as.numeric(Power),
-    packets = as.numeric(packets)
+    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    pwr = as.numeric(pwr),
+    pkt = as.numeric(pkt)
   )
 ```
 
 3. Просмотрите общую структуру данных с помощью функции glimpse()
 
 ```{r}
-glimpse(ap_data_clean)
-glimpse(client_data_clean)
+glimpse(wifi_ap)
+glimpse(wifi_cl)
 ```
 
 ### Анализ
 
 ```{r}
-get_oui <- function(mac) {
-  ifelse(!is.na(mac) & mac != "", 
-         str_sub(mac, 1, 8) %>% str_replace_all(":", "-"),
-         NA_character_)
+extract_oui <- function(mac_addr) {
+  mac_addr %>%
+    { ifelse(!is.na(.) & . != "", str_replace_all(substr(., 1, 8), ":", "-"), NA_character_) }
 }
 ```
 
 1. Определить небезопасные точки доступа (без шифрования – OPN).
 
 ``` {r}
-insecure_ap <- ap_data_clean %>%
-  filter(Privacy == "OPN") %>%
-  select(BSSID, ESSID, Privacy, Power, channel) %>%
-  arrange(desc(Power))
+open_ap <- wifi_ap %>%
+  filter(privacy == "OPN") %>%
+  arrange(desc(pwr)) %>%
+  select(bssid, essid, privacy, pwr, chan)
 ```
 
 ``` {r}
-if(nrow(insecure_ap) > 0) {
-  print(insecure_ap)
-  cat("Всего небезопасных точек доступа:", nrow(insecure_ap), "\n")
-  cat("Процент от общего числа:", round(nrow(insecure_ap)/nrow(ap_data_clean)*100, 1), "%\n")
+if (nrow(open_ap) > 0) {
+  print(open_ap)
+  cat("Всего небезопасных точек доступа:", nrow(open_ap), "\n")
+  cat("Процент от общего числа:",
+      round(100 * nrow(open_ap) / nrow(wifi_ap), 1), "%\n")
 } else {
-  cat("Небезопасные точки доступа (OPN) не обнаружены.\n")
+  cat("Небезопасные точки доступа отсутствуют.\n")
 }
 ```
 
 2. Определить производителя для каждого обнаруженного устройства.
 
 ``` {r}
-ap_with_manufacturer <- ap_data_clean %>%
-  mutate(OUI = get_oui(BSSID)) %>%
-  select(BSSID, ESSID, OUI, Privacy, Power)
+ap_vendor <- wifi_ap %>%
+  mutate(vendor = extract_oui(bssid)) %>%
+  select(bssid, essid, vendor, privacy, pwr)
 
-manufacturer_summary <- ap_with_manufacturer %>%
-  count(OUI, name = "count") %>%
-  arrange(desc(count))
+vendor_count <- ap_vendor %>%
+  count(vendor, name = "n") %>%
+  arrange(desc(n))
 ```
 
 ``` {r}
-print(head(manufacturer_summary, 10))
-cat("Всего уникальных производителей:", n_distinct(ap_with_manufacturer$OUI, na.rm = TRUE), "\n")
+print(head(vendor_count, 10))
+cat("Количество уникальных производителей:",
+    n_distinct(ap_vendor$vendor, na.rm = TRUE), "\n")
 ```
 
 3. Выявить устройства, использующие последнюю версию протокола шифрования WPA3, и названия точек доступа, реализованных на этих устройствах.
 
 ```{r}
-wpa3_devices <- ap_data_clean %>%
+wpa3_set <- wifi_ap %>%
   filter(
-    str_detect(toupper(coalesce(Authentication, "")), "WPA3") | 
-    str_detect(toupper(coalesce(Privacy, "")), "WPA3") |
-    str_detect(toupper(coalesce(Cipher, "")), "WPA3")
+    str_detect(toupper(coalesce(auth, "")), "WPA3") |
+    str_detect(toupper(coalesce(privacy, "")), "WPA3") |
+    str_detect(toupper(coalesce(cipher, "")),  "WPA3")
   ) %>%
-  select(BSSID, ESSID, Privacy, Authentication, Cipher, Power) %>%
-  arrange(desc(Power))
+  arrange(desc(pwr)) %>%
+  select(bssid, essid, privacy, auth, cipher, pwr)
 ```
 
 ``` {r}
-if(nrow(wpa3_devices) > 0) {
-  print(wpa3_devices)
-  cat("Всего устройств с WPA3:", nrow(wpa3_devices), "\n")
+if (nrow(wpa3_set) > 0) {
+  print(wpa3_set)
+  cat("Всего устройств с WPA3:", nrow(wpa3_set), "\n")
 } else {
-  cat("Устройства с WPA3 не обнаружены.\n") }
+  cat("Устройства с WPA3 не найдены.\n")
+}
 ```
 
 4. Отсортировать точки доступа по интервалу времени, в течение которого они находились на связи, по убыванию.
 
 ``` {r}
-ap_duration <- ap_data_clean %>%
-  arrange(BSSID, First_time_seen) %>%
-  group_by(BSSID) %>%
+ap_sessions <- wifi_ap %>%
+  group_by(bssid) %>%
+  arrange(first_seen) %>%
   mutate(
-    session_gap = as.numeric(difftime(First_time_seen, lag(Last_time_seen, default = first(First_time_seen)), units = "mins")),
-    session_id = cumsum(session_gap > 45 | row_number() == 1)
+    gap_m = as.numeric(difftime(first_seen,
+                                lag(last_seen, default = first(first_seen)),
+                                "mins")),
+    sess_id = cumsum(gap_m > 45 | row_number() == 1)
   ) %>%
-  group_by(BSSID, session_id) %>%
+  group_by(bssid, sess_id) %>%
   summarise(
-    ESSID = first(ESSID),
-    session_start = min(First_time_seen),
-    session_end = max(Last_time_seen),
-    .groups = 'drop'
+    essid = first(essid),
+    start = min(first_seen),
+    end   = max(last_seen),
+    .groups = "drop"
   ) %>%
-  mutate(
-    session_duration_minutes = as.numeric(difftime(session_end, session_start, units = "mins"))
-  ) %>%
-  arrange(desc(session_duration_minutes)) %>%
-  select(BSSID, ESSID, session_start, session_end, session_duration_minutes)
+  mutate(duration_min = as.numeric(difftime(end, start, "mins"))) %>%
+  arrange(desc(duration_min)) %>%
+  select(bssid, essid, start, end, duration_min)
 
-print(head(ap_duration, 10))
-cat("Максимальное время на связи с учетом сессий:", round(max(ap_duration$session_duration_minutes, na.rm = TRUE), 1), "минут\n\n")
+print(head(ap_sessions, 10))
+cat("Максимальная длительность:", round(max(ap_sessions$duration_min), 1), "мин.\n\n")
 ```
 
 5. Обнаружить топ-10 самых быстрых точек доступа.
 
 ``` {r}
-fastest_ap <- ap_data_clean %>%
-  filter(!is.na(Speed), Speed > 0) %>%
-  arrange(desc(Speed)) %>%
-  head(10) %>%
-  select(BSSID, ESSID, Speed, channel, Power)
+fast_ap <- wifi_ap %>%
+  filter(!is.na(speed), speed > 0) %>%
+  arrange(desc(speed)) %>%
+  slice(1:10) %>%
+  select(bssid, essid, speed, chan, pwr)
 
-print(fastest_ap)
-cat("Максимальная скорость:", max(fastest_ap$Speed, na.rm = TRUE), "Mbps\n")
+print(fast_ap)
+cat("Максимальная скорость:", max(fast_ap$speed), "Mbps\n")
 ```
 
 6. Отсортировать точки доступа по частоте отправки запросов (beacons) в единицу времени по их убыванию.
 
 ``` {r}
-beacon_analysis <- ap_data_clean %>%
+beacon_stats <- wifi_ap %>%
   mutate(
-    total_time_hours = as.numeric(difftime(Last_time_seen, First_time_seen, units = "hours")),
-    beacon_rate = ifelse(total_time_hours > 0, beacons / total_time_hours, beacons)
+    hours = as.numeric(difftime(last_seen, first_seen, "hours")),
+    rate = ifelse(hours > 0, beacon_count / hours, beacon_count)
   ) %>%
-  filter(!is.na(beacon_rate), total_time_hours > 0, beacon_rate > 0) %>%
-  arrange(desc(beacon_rate)) %>%
-  select(BSSID, ESSID, beacons, total_time_hours, beacon_rate, channel)
+  filter(!is.na(rate), hours > 0, rate > 0) %>%
+  arrange(desc(rate)) %>%
+  select(bssid, essid, beacon_count, hours, rate, chan)
 
-print(head(beacon_analysis, 10))
-cat("Максимальная частота beacon-фреймов:", round(max(beacon_analysis$beacon_rate, na.rm = TRUE), 1), "в час\n")
+print(head(beacon_stats, 10))
+cat("Максимальная частота:", round(max(beacon_stats$rate), 1), "в час\n")
 ```
 
 ### Данные клиентов 
@@ -230,59 +240,64 @@ cat("Максимальная частота beacon-фреймов:", round(max(
 1. Определить производителя для каждого обнаруженного устройства.
 
 ```{r}
-client_with_manufacturer <- client_data_clean %>%
-  mutate(OUI = str_sub(Station_MAC, 1, 8)) %>%
-  select(Station_MAC, OUI, Probed_ESSIDs) %>%
+client_vendor <- wifi_cl %>%
+  mutate(oui = substr(mac, 1, 8)) %>%
+  select(mac, oui, probe) %>%
   distinct()
 
-print(head(client_with_manufacturer, 10))
-cat("Всего уникальных производителей клиентских устройств:", n_distinct(client_with_manufacturer$OUI), "\n\n")
+print(head(client_vendor, 10))
+cat("Уникальных производителей клиентов:",
+    n_distinct(client_vendor$oui), "\n\n")
 ```
 
 2. Обнаружить устройства, которые НЕ рандомизируют свой MAC адрес.
 
 ```{r}
-non_randomized <- client_data_clean %>%
+cl_nonrnd <- wifi_cl %>%
   mutate(
-    second_char = str_sub(Station_MAC, 2, 2),
-    is_randomized = second_char %in% c("2", "6", "a", "e", "A", "E")
+    second = substr(mac, 2, 2),
+    rnd = second %in% c("2", "6", "a", "e", "A", "E")
   ) %>%
-  filter(!is_randomized) %>%
-  select(Station_MAC, First_time_seen, Last_time_seen, Power, packets, Probed_ESSIDs) %>%
-  arrange(desc(packets))
+  filter(!rnd) %>%
+  arrange(desc(pkt)) %>%
+  select(mac, first_seen, last_seen, pwr, pkt, probe)
 
-print(head(non_randomized, 10))
-cat("Устройств без рандомизации MAC:", nrow(non_randomized), "\n")
-cat("Процент от общего числа:", round(nrow(non_randomized)/nrow(client_data_clean)*100, 1), "%\n")
+print(head(cl_nonrnd, 10))
+cat("Без рандомизации:", nrow(cl_nonrnd), "\n")
+cat("Процент:",
+    round(100 * nrow(cl_nonrnd) / nrow(wifi_cl), 1), "%\n")
 ```
 
 3. Кластеризовать запросы от устройств к точкам доступа по их именам. Определить время появления устройства в зоне радиовидимости и время выхода его из нее.
 
 ```{r}
-signal_stability <- client_data_clean %>% 
-  filter(!is.na(Probed_ESSIDs) & Probed_ESSIDs != "") %>% 
-  group_by(Station_MAC, Probed_ESSIDs) %>% 
+probe_stats <- wifi_cl %>%
+  filter(!is.na(probe), probe != "") %>%
+  group_by(mac, probe) %>%
   summarise(
-    mean_power = mean(Power, na.rm = TRUE),
-    sd_power = sd(Power, na.rm = TRUE),
+    mean_pwr = mean(pwr, na.rm = TRUE),
+    sd_pwr = sd(pwr, na.rm = TRUE),
     n = n(),
-    first_seen = min(First_time_seen),
-    last_seen = max(Last_time_seen),
+    first = min(first_seen),
+    last  = max(last_seen),
     .groups = "drop"
-  ) %>% 
-  arrange(sd_power)
+  ) %>%
+  arrange(sd_pwr)
 
-signal_stability
+probe_stats
 ```
 
 4. Оценить стабильность уровня сигнала внури кластера во времени. Выявить наиболее стабильный кластер.
 
 ```{r}
-# 4. Оценка стабильности уровня сигнала внутри кластера во времени
+probe_stats <- probe_stats %>%
+  mutate(stab = 1 / (sd_pwr + 1e-6))
 
-signal_stability <- signal_stability %>% mutate(stability_score = 1 / (sd_power + 1e-6))
-most_stable_cluster <- signal_stability %>% arrange(desc(stability_score)) %>% slice(1)
-most_stable_cluster
+top_cluster <- probe_stats %>%
+  arrange(desc(stab)) %>%
+  slice(1)
+
+top_cluster
 
 ```
 
