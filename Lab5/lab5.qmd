@@ -83,8 +83,8 @@ names(tbl_clients) <- colnames_cl[1:ncol(tbl_clients)]
 wifi_ap <- tbl_access %>%
   filter(!is.na(bssid), bssid != "", !is.na(essid), essid != "") %>%
   mutate(
-    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
-    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    first_seen = as.POSIXct(first_seen, format = "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, format = "%Y-%m-%d %H:%M:%S"),
     chan   = as.numeric(chan),
     speed  = as.numeric(speed),
     pwr    = as.numeric(pwr),
@@ -96,8 +96,8 @@ wifi_ap <- tbl_access %>%
 wifi_cl <- tbl_clients[-1, ] %>%
   filter(!is.na(mac), mac != "", mac != "Station MAC") %>%
   mutate(
-    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
-    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    first_seen = as.POSIXct(first_seen, format = "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, format = "%Y-%m-%d %H:%M:%S"),
     pwr = as.numeric(pwr),
     pkt = as.numeric(pkt)
   )

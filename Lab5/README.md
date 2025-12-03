@@ -54,7 +54,7 @@ install.packages("dplyr")
 
 
     Скачанные бинарные пакеты находятся в
-        C:\Users\Никита\AppData\Local\Temp\Rtmp4S0q7U\downloaded_packages
+        C:\Users\Никита\AppData\Local\Temp\RtmpeG7ASW\downloaded_packages
 
 ``` r
 library(tidyverse)
@@ -138,8 +138,8 @@ names(tbl_clients) <- colnames_cl[1:ncol(tbl_clients)]
 wifi_ap <- tbl_access %>%
   filter(!is.na(bssid), bssid != "", !is.na(essid), essid != "") %>%
   mutate(
-    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
-    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    first_seen = as.POSIXct(first_seen, format = "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, format = "%Y-%m-%d %H:%M:%S"),
     chan   = as.numeric(chan),
     speed  = as.numeric(speed),
     pwr    = as.numeric(pwr),
@@ -147,32 +147,16 @@ wifi_ap <- tbl_access %>%
     iv     = as.numeric(iv),
     id_len = as.numeric(id_len)
   )
-```
 
-    Warning: There were 8 warnings in `mutate()`.
-    The first warning was:
-    ℹ In argument: `first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S")`.
-    Caused by warning in `strptime()`:
-    ! unknown timezone '%Y-%m-%d %H:%M:%S'
-    ℹ Run `dplyr::last_dplyr_warnings()` to see the 7 remaining warnings.
-
-``` r
 wifi_cl <- tbl_clients[-1, ] %>%
   filter(!is.na(mac), mac != "", mac != "Station MAC") %>%
   mutate(
-    first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S"),
-    last_seen  = as.POSIXct(last_seen, "%Y-%m-%d %H:%M:%S"),
+    first_seen = as.POSIXct(first_seen, format = "%Y-%m-%d %H:%M:%S"),
+    last_seen  = as.POSIXct(last_seen, format = "%Y-%m-%d %H:%M:%S"),
     pwr = as.numeric(pwr),
     pkt = as.numeric(pkt)
   )
 ```
-
-    Warning: There were 8 warnings in `mutate()`.
-    The first warning was:
-    ℹ In argument: `first_seen = as.POSIXct(first_seen, "%Y-%m-%d %H:%M:%S")`.
-    Caused by warning in `strptime()`:
-    ! unknown timezone '%Y-%m-%d %H:%M:%S'
-    ℹ Run `dplyr::last_dplyr_warnings()` to see the 7 remaining warnings.
 
 1.  Просмотрите общую структуру данных с помощью функции glimpse()
 
@@ -182,10 +166,6 @@ glimpse(wifi_ap)
 
     Rows: 96
     Columns: 15
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
     $ bssid        <chr> "BE:F1:71:D5:17:8B", "6E:C7:EC:16:DA:1A", "9A:75:A8:B9:04…
     $ first_seen   <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:…
     $ last_seen    <dttm> 2023-07-28 11:50:50, 2023-07-28 11:55:12, 2023-07-28 11:…
@@ -208,10 +188,6 @@ glimpse(wifi_cl)
 
     Rows: 12,081
     Columns: 7
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
     $ mac        <chr> "CA:66:3B:8F:56:DD", "96:35:2D:3D:85:E6", "5C:3A:45:9E:1A:7…
     $ first_seen <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13…
     $ last_seen  <dttm> 2023-07-28 10:59:44, 2023-07-28 09:13:03, 2023-07-28 11:51…
@@ -365,12 +341,6 @@ print(head(ap_sessions, 10))
 ```
 
     # A tibble: 10 × 5
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
        bssid             essid  start               end                 duration_min
        <chr>             <chr>  <dttm>              <dttm>                     <dbl>
      1 E8:28:C1:DD:04:52 MIREA… 2023-07-28 09:13:09 2023-07-28 11:56:05         9776
@@ -508,12 +478,6 @@ print(head(cl_nonrnd, 10))
 ```
 
     # A tibble: 10 × 6
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
        mac               first_seen          last_seen             pwr   pkt probe  
        <chr>             <dttm>              <dttm>              <dbl> <dbl> <chr>  
      1 00:95:69:E7:7D:21 2023-07-28 09:13:15 2023-07-28 11:56:17   -33  8171 nvripc…
@@ -562,12 +526,6 @@ probe_stats
 ```
 
     # A tibble: 1,477 × 7
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
        mac       probe mean_pwr sd_pwr     n first               last               
        <chr>     <chr>    <dbl>  <dbl> <int> <dttm>              <dttm>             
      1 00:90:4C… Redmi      -65     NA     1 2023-07-28 09:16:59 2023-07-28 10:21:15
@@ -597,12 +555,6 @@ top_cluster
 ```
 
     # A tibble: 1 × 8
-
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-    Warning in as.POSIXlt.POSIXct(x, tz): unknown timezone '%Y-%m-%d %H:%M:%S'
-
       mac        probe mean_pwr sd_pwr     n first               last               
       <chr>      <chr>    <dbl>  <dbl> <int> <dttm>              <dttm>             
     1 00:90:4C:… Redmi      -65     NA     1 2023-07-28 09:16:59 2023-07-28 10:21:15
