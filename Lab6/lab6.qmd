@@ -1,0 +1,164 @@
+---
+title: "Исследование вредоносной активности в домене Windows"
+author: "niki-tos29@yandex.ru"
+format: 
+  md:
+    output-file: README.md
+---
+
+## Цель работы
+
+  1. Закрепить навыки исследования данных журнала Windows Active Directory
+  2. Изучить структуру журнала системы Windows Active Directory
+  3. Закрепить практические навыки использования языка программирования R для
+обработки данных
+  4. Закрепить знания основных функций обработки данных экосистемы tidyverse
+языка R
+
+
+
+## Исходные данные
+
+1. Программное обеспечение Windows 11 Pro
+2. Rstudio Desktop
+3. Интерпретатор языка R 4.5.1
+4. Программный пакет dplyr
+5. Данные журнала Windows Active Directory
+       
+ 
+## План
+
+1. Подготовка данных для анализа 
+2. Анализ датасета
+3. Оформление отчета
+
+
+## Шаги:
+
+### Подготовка данных
+
+1.Импортируйте данные в R. Это можно выполнить с помощью jsonlite::stream_in(file()) . Датасет находится по адресу https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz.
+```{r}
+library(jsonlite)
+library(xml2)
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(purrr)
+
+dataset_link <- "https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz"
+local_tar <- "dataset_downloaded.tar.gz"
+download.file(url = dataset_link, destfile = local_tar, mode = "wb", quiet = TRUE)
+
+archive_listing <- untar(local_tar, list = TRUE)
+json_file_name <- archive_listing[grep("\\.json$", archive_listing)]
+
+temp_extract <- tempdir()
+untar(local_tar, files = json_file_name, exdir = temp_extract)
+json_full_path <- file.path(temp_extract, json_file_name)
+
+json_conn <- file(json_full_path, open = "r")
+logs_data <- stream_in(json_conn)
+cat("Импортировано записей из JSON:", nrow(logs_data), "\n")
+
+events_page_url <- "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor"
+page_html <- read_html(events_page_url)
+events_data <- html_table(page_html, fill = TRUE)[[1]]
+```
+
+2.Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных.
+```{r}
+logs_clean <- logs_data %>%
+  mutate(
+    timestamp = as.POSIXct(`@timestamp`, format = "%Y-%m-%dT%H:%M:%OSZ"),
+    across(where(is.character), ~na_if(., ""))
+  )
+
+cat("Данные преобразованы. Логов:", nrow(logs_clean), "Колонок:", ncol(logs_clean), "\n")
+```
+
+3.Просмотрите общую структуру данных с помощью функции glimpse()
+```{r}
+glimpse(logs_clean)
+glimpse(events_data)
+```
+
+
+### Анализ данных
+
+1.Раскройте датафрейм избавившись от вложенных датафреймов. Для обнаружения таких можно использовать функцию dplyr::glimpse() , а для раскрытия вложенности – tidyr::unnest() . Обратите внимание, что при раскрытии теряются внешние названия колонок – это можно предотвратить если использовать параметр tidyr::unnest(..., names_sep = ) .
+```{r}
+for(col in names(logs_clean)) {
+  if(is.data.frame(logs_clean[[col]])) {
+    logs_clean <- logs_clean %>% unnest(all_of(col), names_sep = "_")
+  }
+}
+```
+
+2.Минимизируйте количество колонок в датафрейме – уберите колоки с единственным значением параметра.
+```{r}
+constant_cols <- c()
+for(col_name in names(logs_clean)) {
+  col_data <- logs_clean[[col_name]]
+  if(!is.list(col_data) && !is.data.frame(col_data)) {
+    sample_size <- min(1000, length(col_data))
+    unique_vals <- unique(na.omit(col_data[1:sample_size]))
+    if(length(unique_vals) <= 1) constant_cols <- c(constant_cols, col_name)
+  }
+}
+
+logs_clean <- logs_clean %>% select(-any_of(constant_cols))
+cat("Удалено колонок ", length(constant_cols), "\n")
+cat("Осталось колонок:", ncol(logs_clean), "\n")
+```
+
+3.Какое количество хостов представлено в данном датасете?
+```{r}
+host_count <- logs_clean %>%
+  distinct(winlog_computer_name) %>%
+  nrow()
+
+cat("Количество хостов:", host_count, "\n")
+```
+
+4.Подготовьте датафрейм с расшифровкой Windows Event_ID, приведите типы данных к типу их значений.
+```{r}
+
+windows_event_dataframe <- events_data %>%
+  rename(
+    winlog_event_id = `Current Windows Event ID`,
+    event_description = `Event Summary`
+  ) %>%
+  mutate(
+    winlog_event_id = as.integer(winlog_event_id),
+    event_description = as.character(event_description)
+  )
+
+glimpse(windows_event_dataframe)
+
+```
+
+5.Есть ли в логе события с высоким и средним уровнем значимости? Сколько их?
+```{r}
+high_significance <- logs_clean %>%
+  filter(log_level %in% c("error"))
+
+medium_significance <- logs_clean %>%
+  filter(log_level %in% c("warning"))
+
+high_amount <- nrow(high_significance)
+medium_amount <- nrow(medium_significance)
+
+sprintf("Количество событий высокого уровня значимости: %d", high_amount)
+sprintf("Количество событий среднего уровня значимости: %d", medium_amount)
+sprintf("Общее количество: %d", high_amount + medium_amount)
+```
+
+## Оценка результата
+
+  В результате лабораторной работы мы закрепили навыки исследования данных журнала Windows Active Directory, изучили структуру журнала системы Windows Active Directory, закрепили практические навыки использования языка программирования R для
+обработки данных и знания основных функций обработки данных экосистемы tidyverse.
+
+## Вывод
+
+  Таким образом, Используя программный пакет dplyr мы исследовали вредоносную активность в домене Windows и научились анализировать данные журнала Windows.
