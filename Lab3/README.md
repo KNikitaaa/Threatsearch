@@ -49,6 +49,8 @@ library(nycflights13)
 library(dplyr)
 ```
 
+    Warning: пакет 'dplyr' был собран под R версии 4.5.2
+
 
     Присоединяю пакет: 'dplyr'
 
@@ -75,31 +77,31 @@ data(package = "nycflights13")$results[, "Item"]
 4 Сколько строк в каждом датафрейме?
 
 ``` r
-airlines %>% nrow()
+nrow(airlines)
 ```
 
     [1] 16
 
 ``` r
-airports %>% nrow()
+nrow(airports)
 ```
 
     [1] 1458
 
 ``` r
-flights %>% nrow()
+nrow(flights)
 ```
 
     [1] 336776
 
 ``` r
-planes %>% nrow()
+nrow(planes)
 ```
 
     [1] 3322
 
 ``` r
-weather %>% nrow()
+nrow(weather)
 ```
 
     [1] 26115
@@ -238,7 +240,7 @@ length(unique(airlines$carrier))
 8 Сколько рейсов принял аэропорт John F Kennedy Intl в мае?
 
 ``` r
-nrow(flights[flights$dest == "JFK" & flights$month == 5, ])
+sum(flights$dest == "JFK" & flights$month == 5)
 ```
 
     [1] 0
@@ -246,7 +248,7 @@ nrow(flights[flights$dest == "JFK" & flights$month == 5, ])
 9 Какой самый северный аэропорт?
 
 ``` r
-airports[which.max(airports$lat), ] %>% pull(name)
+airports$name[which.max(airports$lat)]
 ```
 
     [1] "Dillant Hopkins Airport"
@@ -361,13 +363,16 @@ planes %>% select(tailnum, year) %>% arrange(year) %>% slice(1:20) |> knitr::kab
 Kennedy Intl (в градусах Цельсия).
 
 ``` r
-weather %>% filter(origin=='JFK', month==9) %>% summarize(mean_temp = (mean(temp, na.rm = TRUE)-32)*5/9) |> knitr::kable(format='markdown')
+weather %>%
+  dplyr::filter(origin == "JFK", month == 9) %>%
+  dplyr::summarise(avg_temp_c = (mean(temp, na.rm = TRUE) - 32) * 5 / 9) %>%
+  knitr::kable(format = "markdown")
 ```
 
 <table>
 <thead>
 <tr>
-<th style="text-align: right;">mean_temp</th>
+<th style="text-align: right;">avg_temp_c</th>
 </tr>
 </thead>
 <tbody>
@@ -380,7 +385,13 @@ weather %>% filter(origin=='JFK', month==9) %>% summarize(mean_temp = (mean(temp
 13 Самолеты какой авиакомпании совершили больше всего вылетов в июне?
 
 ``` r
-flights %>% left_join(airlines, join_by(carrier)) %>% filter(month == 6)%>%group_by(name) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+flights %>%
+  dplyr::left_join(airlines, by = "carrier") %>%
+  dplyr::filter(month == 6) %>%
+  dplyr::count(name, name = "amount") %>%
+  dplyr::arrange(desc(amount)) %>%
+  dplyr::slice(1) %>%
+  knitr::kable(format = "markdown")
 ```
 
 <table>
@@ -401,7 +412,13 @@ flights %>% left_join(airlines, join_by(carrier)) %>% filter(month == 6)%>%group
 14 Самолеты какой авиакомпании задерживались чаще других в 2013 году?
 
 ``` r
-flights %>% left_join(airlines, join_by(carrier)) %>% group_by(name) %>% filter(arr_delay > 0 & year == 2013) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+flights %>%
+  dplyr::left_join(airlines, by = "carrier") %>%
+  dplyr::filter(year == 2013, arr_delay > 0) %>%
+  dplyr::count(name, name = "amount") %>%
+  dplyr::arrange(desc(amount)) %>%
+  dplyr::slice(1) %>%
+  knitr::kable(format = "markdown")
 ```
 
 <table>

@@ -69,11 +69,11 @@ data(package = "nycflights13")$results[, "Item"]
 4 Сколько строк в каждом датафрейме?
 
 ```{r}
-airlines %>% nrow()
-airports %>% nrow()
-flights %>% nrow()
-planes %>% nrow()
-weather %>% nrow()
+nrow(airlines)
+nrow(airports)
+nrow(flights)
+nrow(planes)
+nrow(weather)
 ```
 
 5 Сколько столбцов в каждом датафрейме?
@@ -105,13 +105,13 @@ length(unique(airlines$carrier))
 8 Сколько рейсов принял аэропорт John F Kennedy Intl в мае?
 
 ```{r}
-nrow(flights[flights$dest == "JFK" & flights$month == 5, ])
+sum(flights$dest == "JFK" & flights$month == 5)
 ```
 
 9 Какой самый северный аэропорт?
 
 ```{r}
-airports[which.max(airports$lat), ] %>% pull(name)
+airports$name[which.max(airports$lat)]
 ```
 
 10 Какой аэропорт самый высокогорный (находится выше всех над уровнем моря)?
@@ -129,19 +129,34 @@ planes %>% select(tailnum, year) %>% arrange(year) %>% slice(1:20) |> knitr::kab
 12 Какая средняя температура воздуха была в сентябре в аэропорту John F Kennedy Intl (в градусах Цельсия).
 
 ```{r}
-weather %>% filter(origin=='JFK', month==9) %>% summarize(mean_temp = (mean(temp, na.rm = TRUE)-32)*5/9) |> knitr::kable(format='markdown')
+weather %>%
+  dplyr::filter(origin == "JFK", month == 9) %>%
+  dplyr::summarise(avg_temp_c = (mean(temp, na.rm = TRUE) - 32) * 5 / 9) %>%
+  knitr::kable(format = "markdown")
 ```
 
 13 Самолеты какой авиакомпании совершили больше всего вылетов в июне?
 
 ```{r}
-flights %>% left_join(airlines, join_by(carrier)) %>% filter(month == 6)%>%group_by(name) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+flights %>%
+  dplyr::left_join(airlines, by = "carrier") %>%
+  dplyr::filter(month == 6) %>%
+  dplyr::count(name, name = "amount") %>%
+  dplyr::arrange(desc(amount)) %>%
+  dplyr::slice(1) %>%
+  knitr::kable(format = "markdown")
 ```
 
 14 Самолеты какой авиакомпании задерживались чаще других в 2013 году?
 
 ```{r}
-flights %>% left_join(airlines, join_by(carrier)) %>% group_by(name) %>% filter(arr_delay > 0 & year == 2013) %>% summarise(amount = n()) %>% arrange(desc(amount)) %>% slice(1) %>% select(name, amount) |> knitr::kable(format='markdown')
+flights %>%
+  dplyr::left_join(airlines, by = "carrier") %>%
+  dplyr::filter(year == 2013, arr_delay > 0) %>%
+  dplyr::count(name, name = "amount") %>%
+  dplyr::arrange(desc(amount)) %>%
+  dplyr::slice(1) %>%
+  knitr::kable(format = "markdown")
 ```
 ## Оценка результата
 
